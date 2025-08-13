@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import type { FormData, WebhookResponse, WebhookData, EmailWithVerification, EmailVerificationResult, EmailWithConfidence, DomainProcessingResult, MultiDomainProgress } from '../types';
 import { SECURITY_CONFIG, validateInput, sanitizeInput } from '../config/security';
 import { validateDomain, validateDomainRealTime, type DomainValidationResult } from '../utils/domainValidation';
+import { useAuth } from '../contexts/AuthContext';
 
 interface UseEmailFormReturn {
   formData: FormData;
@@ -37,6 +38,8 @@ interface UseEmailFormReturn {
 }
 
 const useEmailForm = (): UseEmailFormReturn => {
+  const { user, isAuthenticated } = useAuth();
+  
   const [formData, setFormData] = useState<FormData>({
     firstName: '',
     lastName: '',
@@ -68,6 +71,9 @@ const useEmailForm = (): UseEmailFormReturn => {
   // New multi-domain state
   const [multiDomainProgress, setMultiDomainProgress] = useState<MultiDomainProgress | null>(null);
   const [isMultiDomainProcessing, setIsMultiDomainProcessing] = useState(false);
+  
+  // Current discovery session
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   // Update emailsWithVerification when emails change
   useEffect(() => {
@@ -323,6 +329,12 @@ const useEmailForm = (): UseEmailFormReturn => {
       return;
     }
     
+    // Check authentication
+    if (!isAuthenticated || !user) {
+      console.error('User must be authenticated to use email discovery');
+      return;
+    }
+    
     // Check if we have a file with multiple domains
     if (formData.domainFile) {
       await processMultipleDomains();
@@ -337,36 +349,121 @@ const useEmailForm = (): UseEmailFormReturn => {
     
     setIsLoading(true);
     setCurrentStep(3);
+    
     try {
+      // Start email discovery session
+      const sessionResponse = await fetch('http://localhost:3001/api/email-discovery/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({
+          domains: [formData.domain],
+          formData: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            nickName: formData.nickName,
+            middleName: formData.middleName,
+            customName: formData.customName,
+            useNickName: formData.useNickName,
+            useCustomNames: formData.useCustomNames,
+            usePersonalInfo: formData.useNickName, // Enable personal info if nickname is used
+            useAdvancedEmails: formData.useAdvancedEmails,
+            selectedCustomNames: formData.useCustomNames ? formData.selectedCustomNames : []
+          },
+          config: {
+            maxEmailsPerDomain: 100,
+            confidenceThreshold: 25,
+            autoVerify: false,
+            verificationLimit: 10
+          }
+        })
+      });
+      
+      if (!sessionResponse.ok) {
+        throw new Error(`Failed to start discovery session: ${sessionResponse.status}`);
+      }
+      
+      const sessionData = await sessionResponse.json();
+      const sessionId = sessionData.data.sessionId;
+      setCurrentSessionId(sessionId);
+      
+      console.log('Discovery session started:', sessionData);
+      
+      // Process the domain
+      const processResponse = await fetch(`http://localhost:3001/api/email-discovery/session/${sessionId}/domain/0/process`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
+      
+      if (!processResponse.ok) {
+        throw new Error(`Failed to process domain: ${processResponse.status}`);
+      }
+      
+      const processData = await processResponse.json();
+      console.log('Domain processed:', processData);
+      
+      // Get the discovered emails
+      const emailsResponse = await fetch(`http://localhost:3001/api/email-discovery/session/${sessionId}/emails`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
+      
+      if (!emailsResponse.ok) {
+        throw new Error(`Failed to get session emails: ${emailsResponse.status}`);
+      }
+      
+      const emailsData = await emailsResponse.json();
+      const discoveredEmails = emailsData.data.emails;
+      
+      // Convert to the expected format
+      const emailsWithConfidenceData: EmailWithConfidence[] = discoveredEmails.map((email: any) => ({
+        email: email.email,
+        confidence: email.confidence
+      }));
+      
+      setEmailsWithConfidence(emailsWithConfidenceData);
+      setEmails(emailsWithConfidenceData.map(item => item.email));
+      setCurrentStep(4);
+      
+    } catch (error) {
+      console.error('Error in email discovery:', error);
+      // Fallback to old method if new backend fails
+      await fallbackToOldMethod();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [formData, webhookResponse, validateForm, triggerDomainWebhook, isAuthenticated, user]);
+
+  // Fallback to old method if new backend fails
+  const fallbackToOldMethod = async () => {
+    try {
+      console.log('Falling back to old method...');
       const formDataToSend = new FormData();
       
       formDataToSend.append('firstName', formData.firstName);
       formDataToSend.append('lastName', formData.lastName);
       formDataToSend.append('middleName', formData.middleName);
       formDataToSend.append('domain', formData.domain);
-      formDataToSend.append('mode', formData.mode);
       formDataToSend.append('useNickName', formData.useNickName.toString());
       formDataToSend.append('useCustomNames', formData.useCustomNames.toString());
       formDataToSend.append('useAdvancedEmails', formData.useAdvancedEmails.toString());
-      formDataToSend.append('usePersonalInfo', 'false');
+      formDataToSend.append('usePersonalInfo', formData.useNickName.toString());
       
       if (formData.useNickName) {
         formDataToSend.append('nickName', formData.nickName);
       }
       
       if (formData.useCustomNames) {
-        console.log('Sending custom names:', formData.selectedCustomNames);
         formDataToSend.append('selectedCustomNames', JSON.stringify(formData.selectedCustomNames));
-      } else {
-        console.log('Custom names not enabled');
       }
       
       if (webhookResponse) {
         formDataToSend.append('webhookResponse', JSON.stringify(webhookResponse));
-      }
-      
-      if (formData.domainFile) {
-        formDataToSend.append('domainFile', formData.domainFile);
       }
       
       const response = await fetch('http://localhost:3001/permute', {
@@ -375,27 +472,29 @@ const useEmailForm = (): UseEmailFormReturn => {
       });
       
       const data = await response.json();
-            // Handle both old format (string[]) and new format (EmailWithConfidence[])
-            if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && 'email' in data[0] && 'confidence' in data[0]) {
-              // New format with confidence levels
-              setEmailsWithConfidence(data);
-              setEmails(data.map((item: EmailWithConfidence) => item.email));
-            } else {
-              // Old format - just strings
-      setEmails(data);
-              setEmailsWithConfidence([]);
-            }
+      
+      if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && 'email' in data[0] && 'confidence' in data[0]) {
+        setEmailsWithConfidence(data);
+        setEmails(data.map((item: EmailWithConfidence) => item.email));
+      } else {
+        setEmails(data);
+        setEmailsWithConfidence([]);
+      }
       setCurrentStep(4);
-    } catch (error) {
-      console.error('Error generating emails:', error);
-    } finally {
-      setIsLoading(false);
+    } catch (fallbackError) {
+      console.error('Fallback method also failed:', fallbackError);
     }
-  }, [formData, webhookResponse, validateForm, triggerDomainWebhook]);
+  };
 
   // New function to process multiple domains
   const processMultipleDomains = useCallback(async () => {
     if (!formData.domainFile) return;
+    
+    // Check authentication
+    if (!isAuthenticated || !user) {
+      console.error('User must be authenticated to use email discovery');
+      return;
+    }
     
     setIsMultiDomainProcessing(true);
     setCurrentStep(3);
@@ -421,8 +520,173 @@ const useEmailForm = (): UseEmailFormReturn => {
         results: []
       });
       
-      const formDataToSend = new FormData();
+      // Start multi-domain discovery session
+      const sessionResponse = await fetch('http://localhost:3001/api/email-discovery/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({
+          domains: uniqueDomains,
+          formData: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            nickName: formData.nickName,
+            middleName: formData.middleName,
+            customName: formData.customName,
+            useNickName: formData.useNickName,
+            useCustomNames: formData.useCustomNames,
+            usePersonalInfo: formData.useNickName,
+            useAdvancedEmails: formData.useAdvancedEmails,
+            selectedCustomNames: formData.useCustomNames ? formData.selectedCustomNames : []
+          },
+          config: {
+            maxEmailsPerDomain: 100,
+            confidenceThreshold: 25,
+            autoVerify: false,
+            verificationLimit: 10
+          }
+        })
+      });
       
+      if (!sessionResponse.ok) {
+        throw new Error(`Failed to start multi-domain discovery session: ${sessionResponse.status}`);
+      }
+      
+      const sessionData = await sessionResponse.json();
+      const sessionId = sessionData.data.sessionId;
+      setCurrentSessionId(sessionId);
+      
+      console.log('Multi-domain discovery session started:', sessionData);
+      
+      // Process each domain sequentially
+      const allEmails: string[] = [];
+      const allEmailsWithConfidence: EmailWithConfidence[] = [];
+      const domainResults: DomainProcessingResult[] = [];
+      
+      for (let i = 0; i < uniqueDomains.length; i++) {
+        const domain = uniqueDomains[i];
+        
+        // Update progress
+        setMultiDomainProgress(prev => prev ? {
+          ...prev,
+          currentDomain: domain,
+          currentDomainIndex: i
+        } : null);
+        
+        try {
+          // Process domain
+          const processResponse = await fetch(`http://localhost:3001/api/email-discovery/session/${sessionId}/domain/${i}/process`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            }
+          });
+          
+          if (!processResponse.ok) {
+            throw new Error(`Failed to process domain ${domain}: ${processResponse.status}`);
+          }
+          
+          const processData = await processResponse.json();
+          console.log(`Domain ${domain} processed:`, processData);
+          
+          // Get emails for this domain
+          const emailsResponse = await fetch(`http://localhost:3001/api/email-discovery/session/${sessionId}/emails?domain=${domain}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            }
+          });
+          
+          if (!emailsResponse.ok) {
+            throw new Error(`Failed to get emails for domain ${domain}: ${emailsResponse.status}`);
+          }
+          
+          const emailsData = await emailsResponse.json();
+          const domainEmails = emailsData.data.emails;
+          
+          // Add to results
+          domainResults.push({
+            domain,
+            emails: domainEmails.map((email: any) => ({
+              email: email.email,
+              confidence: email.confidence
+            })),
+            webhookResponse: null,
+            status: 'completed',
+            timestamp: new Date().toISOString()
+          });
+          
+          // Add emails to collections
+          domainEmails.forEach((email: any) => {
+            allEmails.push(email.email);
+            allEmailsWithConfidence.push({
+              email: email.email,
+              confidence: email.confidence
+            });
+          });
+          
+          // Update progress
+          setMultiDomainProgress(prev => prev ? {
+            ...prev,
+            processedDomains: i + 1,
+            results: domainResults
+          } : null);
+          
+        } catch (domainError) {
+          console.error(`Error processing domain ${domain}:`, domainError);
+          
+          domainResults.push({
+            domain,
+            emails: [],
+            webhookResponse: null,
+            status: 'error',
+            error: domainError instanceof Error ? domainError.message : 'Unknown error',
+            timestamp: new Date().toISOString()
+          });
+          
+          // Update progress with error
+          setMultiDomainProgress(prev => prev ? {
+            ...prev,
+            processedDomains: i + 1,
+            results: domainResults
+          } : null);
+        }
+      }
+      
+      // Set final results
+      setEmails(allEmails);
+      setEmailsWithConfidence(allEmailsWithConfidence);
+      setMultiDomainProgress(prev => prev ? {
+        ...prev,
+        isProcessing: false,
+        processedDomains: prev.totalDomains,
+        results: domainResults
+      } : null);
+      
+      setCurrentStep(4);
+      
+    } catch (error) {
+      console.error('Error processing multiple domains:', error);
+      setMultiDomainProgress(prev => prev ? {
+        ...prev,
+        isProcessing: false,
+        results: prev.results.map(r => r.status === 'processing' ? { ...r, status: 'error', error: 'Processing failed' } : r)
+      } : null);
+      
+      // Fallback to old method
+      await fallbackMultiDomainMethod();
+    } finally {
+      setIsMultiDomainProcessing(false);
+    }
+  }, [formData, isAuthenticated, user]);
+
+  // Fallback method for multi-domain processing
+  const fallbackMultiDomainMethod = async () => {
+    try {
+      console.log('Falling back to old multi-domain method...');
+      
+      const formDataToSend = new FormData();
       formDataToSend.append('firstName', formData.firstName);
       formDataToSend.append('lastName', formData.lastName);
       formDataToSend.append('middleName', formData.middleName);
@@ -513,77 +777,128 @@ const useEmailForm = (): UseEmailFormReturn => {
   const verifyEmails = useCallback(async (count?: number) => {
     if (emails.length === 0 || emailsWithConfidence.length === 0) return;
 
+    // Check authentication
+    if (!isAuthenticated || !user) {
+      console.error('User must be authenticated to use email verification');
+      return;
+    }
+
     setIsVerifying(true);
     setCurrentStep(5);
     
     try {
-      // Use smart verification service
-      const response = await fetch('http://localhost:3001/api/smart-verify', {
+      // Get email IDs from the current session
+      if (!currentSessionId) {
+        throw new Error('No active discovery session for verification');
+      }
+
+      // Get session emails to get their IDs
+      const emailsResponse = await fetch(`http://localhost:3001/api/email-discovery/session/${currentSessionId}/emails`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
+
+      if (!emailsResponse.ok) {
+        throw new Error(`Failed to get session emails: ${emailsResponse.status}`);
+      }
+
+      const emailsData = await emailsResponse.json();
+      const sessionEmails = emailsData.data.emails;
+      
+      // Filter emails to verify based on count
+      const emailsToVerify = count ? Math.min(count, emails.length) : emails.length;
+      const emailsToVerifyList = emails.slice(0, emailsToVerify);
+      
+      // Find corresponding email IDs from session
+      const emailIdsToVerify = sessionEmails
+        .filter((sessionEmail: any) => emailsToVerifyList.includes(sessionEmail.email))
+        .map((sessionEmail: any) => sessionEmail._id);
+
+      if (emailIdsToVerify.length === 0) {
+        throw new Error('No email IDs found for verification');
+      }
+
+      // Use bulk verification service
+      const response = await fetch('http://localhost:3001/api/email-verification/bulk-verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
         body: JSON.stringify({
-          emailsWithConfidence: emailsWithConfidence.slice(0, count || 10),
-          maxEmails: count || 10
+          emailIds: emailIdsToVerify,
+          method: 'free' // Use free verification method
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Smart verification failed: ${response.status}`);
+        throw new Error(`Bulk verification failed: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Smart verification results:', data);
+      console.log('Bulk verification results:', data);
 
       // Update verification results
-    const updatedEmailsWithVerification = [...emailsWithVerification];
-    
-      data.results.forEach((result: EmailVerificationResult, index: number) => {
-        if (index < updatedEmailsWithVerification.length) {
-          updatedEmailsWithVerification[index].verification = result;
-          updatedEmailsWithVerification[index].isVerifying = false;
+      const updatedEmailsWithVerification = [...emailsWithVerification];
+      
+      // Map verification results back to emails
+      data.data.results.forEach((result: any) => {
+        const emailIndex = updatedEmailsWithVerification.findIndex(e => e.email === result.email);
+        if (emailIndex !== -1) {
+          updatedEmailsWithVerification[emailIndex].verification = result.verification;
+          updatedEmailsWithVerification[emailIndex].isVerifying = false;
         }
       });
 
       setEmailsWithVerification(updatedEmailsWithVerification);
       
-      // Show usage statistics
-      console.log('Verification usage stats:', data.usageStats);
+      console.log('Verification completed successfully');
       
     } catch (error) {
-      console.error('Error in smart verification:', error);
+      console.error('Error in bulk verification:', error);
       
-      // Fallback to individual verification if smart verification fails
+      // Fallback to individual verification if bulk verification fails
+      await fallbackVerification(count);
+    } finally {
+      setIsVerifying(false);
+      setCurrentStep(4); // Go back to results step after verification
+    }
+  }, [emails, emailsWithConfidence, emailsWithVerification, isAuthenticated, user, currentSessionId]);
+
+  // Fallback verification method
+  const fallbackVerification = async (count?: number) => {
+    try {
+      console.log('Using fallback verification method...');
+      
       const updatedEmailsWithVerification = [...emailsWithVerification];
-    const emailsToVerify = count ? Math.min(count, emails.length) : emails.length;
+      const emailsToVerify = count ? Math.min(count, emails.length) : emails.length;
 
-    for (let i = 0; i < emailsToVerify; i++) {
-      const email = emails[i];
-      updatedEmailsWithVerification[i].isVerifying = true;
-      setEmailsWithVerification([...updatedEmailsWithVerification]);
+      for (let i = 0; i < emailsToVerify; i++) {
+        const email = emails[i];
+        updatedEmailsWithVerification[i].isVerifying = true;
+        setEmailsWithVerification([...updatedEmailsWithVerification]);
 
-      try {
-        const verificationResponse = await fetch(`http://localhost:8080/v1/${encodeURIComponent(email)}/verification`);
-        const verificationData: EmailVerificationResult = await verificationResponse.json();
-        
+        try {
+          const verificationResponse = await fetch(`http://localhost:8080/v1/${encodeURIComponent(email)}/verification`);
+          const verificationData: EmailVerificationResult = await verificationResponse.json();
+          
           console.log(`Fallback verification data for ${email}:`, verificationData);
 
-        updatedEmailsWithVerification[i].verification = verificationData;
+          updatedEmailsWithVerification[i].verification = verificationData;
         } catch (fallbackError) {
           console.error(`Error in fallback verification for ${email}:`, fallbackError);
           updatedEmailsWithVerification[i].verificationError = `Failed to verify: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`;
-      } finally {
-        updatedEmailsWithVerification[i].isVerifying = false;
-        setEmailsWithVerification([...updatedEmailsWithVerification]);
-        await new Promise(resolve => setTimeout(resolve, 50)); 
+        } finally {
+          updatedEmailsWithVerification[i].isVerifying = false;
+          setEmailsWithVerification([...updatedEmailsWithVerification]);
+          await new Promise(resolve => setTimeout(resolve, 50)); 
+        }
       }
+    } catch (error) {
+      console.error('Fallback verification also failed:', error);
     }
-    } finally {
-    setIsVerifying(false);
-    setCurrentStep(4); // Go back to results step after verification
-    }
-  }, [emails, emailsWithConfidence, emailsWithVerification]);
+  };
 
   return {
     formData,
