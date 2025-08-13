@@ -1,6 +1,9 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
+import { useAuth } from '../contexts/AuthContext';
+import UserProfile from './UserProfile';
 
 interface HeaderProps {
   currentStep: number;
@@ -11,6 +14,8 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ currentStep, isDarkTheme, onToggleTheme, domain, onDomainChange }) => {
+  const { isAuthenticated } = useAuth();
+
   const getStepStatus = (): string => {
     switch (currentStep) {
       case 1:
@@ -135,13 +140,33 @@ const Header: React.FC<HeaderProps> = ({ currentStep, isDarkTheme, onToggleTheme
             )}
           </button>
           
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-            isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'
-          }`}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
+          {/* Authentication Section */}
+          {isAuthenticated ? (
+            <UserProfile />
+          ) : (
+            <div className="flex items-center space-x-3">
+              <Link
+                href="/auth/login"
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  isDarkTheme
+                    ? 'text-gray-300 hover:text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/auth/register"
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  isDarkTheme
+                    ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600'
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700'
+                }`}
+              >
+                Sign up
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>

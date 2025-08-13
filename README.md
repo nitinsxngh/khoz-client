@@ -1,288 +1,217 @@
-# KHOZ Email Discovery - Frontend
+# Khozai - Email Discovery & Verification Platform
 
-A modern, secure, and maintainable React/Next.js application for AI-powered email discovery with component-based architecture.
+A modern web application for discovering and verifying email addresses using AI-powered tools.
 
-## 🏗️ Architecture Overview
+## Features
 
-The application follows a modular, component-based architecture with proper separation of concerns:
+### Core Functionality
+- **AI Email Discovery**: Automatically discover email addresses from domains
+- **Email Verification**: Verify email addresses for validity and deliverability
+- **Multi-Domain Processing**: Handle multiple domains simultaneously
+- **Advanced Email Generation**: Create custom email patterns and variations
+- **Webhook Integration**: Real-time notifications and data processing
+
+### Authentication System
+- **User Registration**: Create new accounts with email verification
+- **Secure Login**: Email and password authentication
+- **Password Reset**: Forgot password functionality with email recovery
+- **Social Login**: Google and Facebook authentication options
+- **User Profiles**: Manage account settings and preferences
+- **Session Management**: Secure token-based authentication
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **Styling**: Tailwind CSS 4 with custom glassmorphism effects
+- **Authentication**: Custom React Context with localStorage persistence
+- **State Management**: React Hooks and Context API
+- **Routing**: Next.js App Router with dynamic routing
+
+## Project Structure
 
 ```
-client/app/
-├── components/          # Reusable UI components
-│   ├── Header.tsx      # Application header with step indicator
-│   ├── ProgressSteps.tsx # Progress indicator component
-│   ├── DomainInput.tsx # Domain input with file upload
-│   ├── ModeToggle.tsx  # Removed - manual mode no longer supported
-│   ├── PersonalInfoForm.tsx # Removed - manual mode no longer supported
-│   ├── CustomNamesForm.tsx # Custom names management
-│   ├── WebhookNotification.tsx # AI data notification
-│   ├── SubmitButton.tsx # Dynamic submit button
-│   ├── EmailResults.tsx # Email results display
-│   └── EmailForm.tsx   # Main form container
-├── hooks/              # Custom React hooks
-│   └── useEmailForm.ts # Form logic and state management
-├── config/             # Configuration files
-│   └── security.ts     # Security rules and validation
-├── types/              # TypeScript type definitions
-│   └── index.ts        # Application types
-└── page.tsx           # Main application page
+client/
+├── app/
+│   ├── auth/                    # Authentication pages
+│   │   ├── login/              # Sign in page
+│   │   ├── register/           # Sign up page
+│   │   ├── forgot-password/    # Password reset page
+│   │   └── layout.tsx          # Auth layout wrapper
+│   ├── components/              # Reusable components
+│   │   ├── Header.tsx          # Main navigation header
+│   │   ├── UserProfile.tsx     # User profile dropdown
+│   │   ├── ProtectedRoute.tsx  # Route protection component
+│   │   └── ...                 # Other components
+│   ├── contexts/                # React contexts
+│   │   └── AuthContext.tsx     # Authentication state management
+│   ├── hooks/                   # Custom React hooks
+│   ├── types/                   # TypeScript type definitions
+│   ├── utils/                   # Utility functions
+│   ├── globals.css              # Global styles and Tailwind config
+│   ├── layout.tsx               # Root layout with AuthProvider
+│   └── page.tsx                 # Main application page
+├── package.json                 # Dependencies and scripts
+└── README.md                    # This file
 ```
 
-## 🔒 Security Features
+## Authentication Flow
 
-### Input Validation & Sanitization
-- **Domain Validation**: RFC 1035 compliant domain validation
-- **Name Sanitization**: Removes potentially dangerous characters
-- **File Validation**: Type and size restrictions (5MB max, .txt only)
-- **XSS Prevention**: Input sanitization and output encoding
+### 1. User Registration
+- Users fill out registration form with personal information
+- Form validation ensures data integrity
+- Account creation with secure password handling
+- Redirect to login with success message
 
-### Rate Limiting
-- **Webhook Calls**: 10 calls per minute
-- **Form Submissions**: 20 submissions per minute
-- **Client-side Protection**: Prevents rapid-fire requests
+### 2. User Login
+- Email and password authentication
+- Remember me functionality
+- Social login options (Google, Facebook)
+- Redirect to main application after successful login
 
-### API Security
-- **Security Headers**: XSS protection, content type options
-- **CORS Configuration**: Proper cross-origin request handling
-- **Input Length Limits**: Prevents buffer overflow attacks
+### 3. Password Recovery
+- Email-based password reset
+- Secure token generation and validation
+- User-friendly success/error messaging
 
-## 🧩 Component Structure
+### 4. Session Management
+- JWT token storage in localStorage
+- Automatic authentication state checking
+- Protected route handling
+- Secure logout functionality
 
-### Core Components
-
-#### `Header.tsx`
-- Displays application title and current step status
-- Dynamic status updates based on workflow progress
-
-#### `ProgressSteps.tsx`
-- Visual progress indicator with 4 steps
-- Step status: pending, active, completed
-- Responsive design with proper accessibility
-
-#### `DomainInput.tsx`
-- Domain text input with validation
-- File upload with security checks
-- Real-time error feedback
-
-
-
-
-
-#### `CustomNamesForm.tsx`
-- Custom name addition/removal
-- Quick-add predefined names
-- Input validation and sanitization
-
-#### `EmailResults.tsx`
-- Email list display with copy functionality
-- Email format validation
-- Responsive grid layout
-
-### Custom Hook: `useEmailForm.ts`
-
-Centralized form logic with:
-- State management for all form fields
-- Validation logic
-- API integration
-- Error handling
-- Progress tracking
-
-## 🛡️ Security Configuration
-
-### `security.ts`
-Contains all security-related configurations:
-
-```typescript
-export const SECURITY_CONFIG = {
-  INPUT_LIMITS: {
-    DOMAIN_MAX_LENGTH: 253,
-    NAME_MAX_LENGTH: 50,
-    CUSTOM_NAME_MAX_LENGTH: 20,
-    FILE_MAX_SIZE: 5 * 1024 * 1024,
-  },
-  ALLOWED_FILE_TYPES: ['text/plain'],
-  RATE_LIMITS: {
-    WEBHOOK_CALLS_PER_MINUTE: 10,
-    FORM_SUBMISSIONS_PER_MINUTE: 20,
-  },
-  // ... more configurations
-};
-```
-
-### Validation Functions
-- `validateInput.domain()`: Domain format validation
-- `validateInput.name()`: Name character validation
-- `validateInput.email()`: Email format validation
-- `validateInput.file()`: File type and size validation
-
-### Sanitization Functions
-- `sanitizeInput.domain()`: Domain character filtering
-- `sanitizeInput.name()`: Name XSS prevention
-- `sanitizeInput.customName()`: Custom name formatting
-
-## 🎯 Key Features
-
-### 1. Component Reusability
-- Modular components with clear interfaces
-- Props-based communication
-- Consistent styling and behavior
-
-### 2. Type Safety
-- Comprehensive TypeScript interfaces
-- Strict type checking
-- IntelliSense support
-
-### 3. Security First
-- Input validation at multiple levels
-- XSS prevention
-- Rate limiting
-- File upload security
-
-### 4. User Experience
-- Real-time validation feedback
-- Progress indication
-- Responsive design
-- Accessibility features
-
-### 5. Maintainability
-- Clear separation of concerns
-- Consistent code patterns
-- Comprehensive documentation
-- Easy testing structure
-
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Node.js 18+ 
-- npm or yarn
+- npm or yarn package manager
 
 ### Installation
-```bash
-cd client
-npm install
-```
 
-### Development
-```bash
-npm run dev
-```
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd Khozai/client
+   ```
 
-### Building
-```bash
-npm run build
-```
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-## 🧪 Testing
+3. **Start development server**
+   ```bash
+   npm run dev
+   ```
 
-The component-based architecture makes testing straightforward:
+4. **Open your browser**
+   Navigate to `http://localhost:3000`
 
-```typescript
-// Example test for DomainInput component
-import { render, screen } from '@testing-library/react';
-import DomainInput from './components/DomainInput';
+### Available Scripts
 
-test('validates domain input', () => {
-  render(<DomainInput domain="" onDomainChange={jest.fn()} />);
-  // Test implementation
-});
-```
+- `npm run dev` - Start development server with Turbopack
+- `npm run build` - Build production application
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint for code quality
 
-## 📝 Code Standards
+## Authentication Pages
 
-### Component Guidelines
-1. **Single Responsibility**: Each component has one clear purpose
-2. **Props Interface**: All components have typed props
-3. **Error Handling**: Proper error boundaries and validation
-4. **Accessibility**: ARIA labels and keyboard navigation
-5. **Performance**: Memoization where appropriate
+### Login Page (`/auth/login`)
+- Clean, modern design with glassmorphism effects
+- Email and password input fields
+- Password visibility toggle
+- Remember me checkbox
+- Forgot password link
+- Social login options
+- Link to registration page
 
-### Security Guidelines
-1. **Input Validation**: Always validate user input
-2. **Output Encoding**: Prevent XSS attacks
-3. **Rate Limiting**: Prevent abuse
-4. **File Validation**: Check file types and sizes
-5. **Error Messages**: Don't expose sensitive information
+### Registration Page (`/auth/register`)
+- Comprehensive user registration form
+- First name, last name, email, phone fields
+- Password and confirmation fields
+- Terms and conditions agreement
+- Form validation with error messaging
+- Social registration options
+- Link to login page
 
-## 🔧 Configuration
+### Forgot Password Page (`/auth/forgot-password`)
+- Simple email input form
+- Password reset email functionality
+- Success state with resend options
+- Back to login navigation
 
-### Environment Variables
-```env
-NEXT_PUBLIC_API_URL=http://localhost:3001
-NEXT_PUBLIC_WEBHOOK_URL=https://sangam.xendrax.in/webhook/...
-```
+## Design System
 
-### Security Settings
-Modify `config/security.ts` to adjust:
-- Input length limits
-- File size restrictions
-- Rate limiting rules
-- Validation patterns
+### Visual Elements
+- **Color Scheme**: Dark theme with purple/blue gradients
+- **Typography**: Inter font family for modern readability
+- **Glassmorphism**: Translucent backgrounds with backdrop blur
+- **Animations**: Smooth transitions and hover effects
+- **Icons**: Heroicons for consistent iconography
 
-## 📚 API Integration
+### Responsive Design
+- Mobile-first approach
+- Responsive grid layouts
+- Adaptive component sizing
+- Touch-friendly interactions
 
-### Webhook Integration
-- Secure webhook calls with rate limiting
-- Error handling and retry logic
-- Response validation
+### Accessibility
+- Semantic HTML structure
+- ARIA labels and descriptions
+- Keyboard navigation support
+- Focus management
+- Color contrast compliance
 
-### Backend Communication
-- FormData-based file uploads
-- JSON payload validation
-- Error response handling
+## Security Features
 
-## 🎨 Styling
+### Authentication Security
+- Secure password handling
+- JWT token management
+- Protected route implementation
+- Session timeout handling
+- CSRF protection considerations
 
-The application uses Tailwind CSS with:
-- Consistent design system
-- Responsive breakpoints
-- Dark theme support
-- Custom scrollbars
-- Smooth animations
+### Data Protection
+- Input validation and sanitization
+- XSS prevention
+- Secure storage practices
+- HTTPS enforcement
 
-## 🔄 State Management
+## Future Enhancements
 
-State is managed through:
-- React hooks for local state
-- Custom hooks for complex logic
-- Props for component communication
-- Context for global state (if needed)
+### Planned Features
+- **Two-Factor Authentication**: SMS or app-based 2FA
+- **Email Verification**: Account activation via email
+- **OAuth Integration**: Additional social login providers
+- **Role-Based Access**: User permissions and roles
+- **Audit Logging**: User activity tracking
+- **API Rate Limiting**: Request throttling and protection
 
-## 🚨 Error Handling
+### Technical Improvements
+- **Server-Side Rendering**: Improved SEO and performance
+- **Progressive Web App**: Offline functionality and app-like experience
+- **Internationalization**: Multi-language support
+- **Advanced Analytics**: User behavior tracking
+- **Performance Optimization**: Code splitting and lazy loading
 
-Comprehensive error handling includes:
-- Network error recovery
-- Validation error display
-- User-friendly error messages
-- Error boundary implementation
+## Contributing
 
-## 📈 Performance
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-Performance optimizations:
-- Component memoization
-- Lazy loading where appropriate
-- Efficient re-renders
-- Optimized bundle size
+## License
 
-## 🔐 Security Checklist
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-- [x] Input validation and sanitization
-- [x] XSS prevention
-- [x] CSRF protection
-- [x] Rate limiting
-- [x] File upload security
-- [x] Secure headers
-- [x] Error message sanitization
-- [x] Type safety
-- [x] Access control
+## Support
 
-## 🤝 Contributing
+For support and questions:
+- Create an issue in the repository
+- Contact the development team
+- Check the documentation and FAQ
 
-1. Follow the component-based architecture
-2. Add proper TypeScript types
-3. Include security validation
-4. Write tests for new components
-5. Update documentation
+---
 
-## 📄 License
-
-This project is licensed under the MIT License.
+**Built with ❤️ using Next.js, React, and Tailwind CSS**
