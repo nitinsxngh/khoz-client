@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
-import ProgressSteps from './components/ProgressSteps';
 import EmailForm from './components/EmailForm';
 import EmailResults from './components/EmailResults';
 import MultiDomainProgress from './components/MultiDomainProgress';
@@ -24,7 +23,6 @@ export default function Home() {
     domainValidation,
     isDomainValidating,
     webhookResponse,
-    showWebhookResponse,
     // New multi-domain properties
     multiDomainProgress,
     isMultiDomainProcessing,
@@ -124,23 +122,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Custom Scrollbar Styles */}
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: ${isDarkTheme ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'};
-          border-radius: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: ${isDarkTheme ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'};
-          border-radius: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: ${isDarkTheme ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)'};
-        }
-      `}</style>
+
       </div>
     </ProtectedRoute>
   );

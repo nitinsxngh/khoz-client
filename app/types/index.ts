@@ -81,24 +81,7 @@ export interface WebhookResponse {
   [key: string]: any;
 }
 
-export interface WebhookData {
-  domain: string;
-  hasDomainFile: boolean;
-  timestamp: string;
-  message: string;
-}
 
-export interface ApiResponse {
-  success: boolean;
-  data?: string[];
-  error?: string;
-  message?: string;
-}
-
-export interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-}
 
 export interface Step {
   step: number;

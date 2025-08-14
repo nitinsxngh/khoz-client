@@ -17,7 +17,6 @@ interface UseEmailFormReturn {
   domainValidation: DomainValidationResult | null;
   isDomainValidating: boolean;
   webhookResponse: any;
-  showWebhookResponse: boolean;
   // New multi-domain properties
   multiDomainProgress: MultiDomainProgress | null;
   isMultiDomainProcessing: boolean;
@@ -32,7 +31,6 @@ interface UseEmailFormReturn {
   onUseCustomNamesChange: (use: boolean) => void;
   onUseAdvancedEmailsChange: (use: boolean) => void;
   onSubmit: () => void;
-  triggerDomainWebhook: () => Promise<void>;
   verifyEmails: (count?: number) => Promise<void>;
 }
 
@@ -63,7 +61,6 @@ const useEmailForm = (): UseEmailFormReturn => {
   const [domainValidation, setDomainValidation] = useState<DomainValidationResult | null>(null);
   const [isDomainValidating, setIsDomainValidating] = useState(false);
   const [webhookResponse, setWebhookResponse] = useState<WebhookResponse | null>(null);
-  const [showWebhookResponse, setShowWebhookResponse] = useState(false);
   
   // New multi-domain state
   const [multiDomainProgress, setMultiDomainProgress] = useState<MultiDomainProgress | null>(null);
@@ -218,113 +215,7 @@ const useEmailForm = (): UseEmailFormReturn => {
     return true;
   }, [formData, webhookResponse, domainValidation, isDomainValidating]);
 
-  const triggerDomainWebhook = useCallback(async () => {
-    try {
-      setCurrentStep(2);
-      console.log('Triggering Perplexity API for domain:', formData.domain);
-      
-      const response = await fetch('http://localhost:3001/api/perplexity', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          domain: formData.domain
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Perplexity API error: ${response.status}`);
-      }
-      
-      const responseData = await response.json();
-      console.log('Perplexity API response:', responseData);
-      
-      if (responseData.success && responseData.data) {
-        // Format the response to match the expected webhook format
-        const webhookResponse: WebhookResponse = {
-          output: JSON.stringify(responseData.data, null, 2),
-          domain: responseData.domain,
-          timestamp: responseData.timestamp
-        };
-        
-        setWebhookResponse(webhookResponse);
-        setShowWebhookResponse(true);
-        
-        // Auto-submit after Perplexity API response
-        setTimeout(async () => {
-          setIsLoading(true);
-          setCurrentStep(3);
-          try {
-            const formDataToSend = new FormData();
-            
-            formDataToSend.append('firstName', formData.firstName);
-            formDataToSend.append('lastName', formData.lastName);
-            formDataToSend.append('middleName', formData.middleName);
-            formDataToSend.append('domain', formData.domain);
-            formDataToSend.append('mode', formData.mode);
-            formDataToSend.append('useNickName', formData.useNickName.toString());
-            formDataToSend.append('useCustomNames', formData.useCustomNames.toString());
-            formDataToSend.append('useAdvancedEmails', formData.useAdvancedEmails.toString());
-            formDataToSend.append('usePersonalInfo', 'false');
-            
-            if (formData.useNickName) {
-              formDataToSend.append('nickName', formData.nickName);
-            }
-            
-            if (formData.useCustomNames) {
-              formDataToSend.append('selectedCustomNames', JSON.stringify(formData.selectedCustomNames));
-            }
-            
-            formDataToSend.append('webhookResponse', JSON.stringify(webhookResponse));
-            
-            if (formData.domainFile) {
-              formDataToSend.append('domainFile', formData.domainFile);
-            }
-            
-            const response = await fetch('http://localhost:3001/permute', {
-              method: 'POST',
-              body: formDataToSend,
-            });
-            
-            const data = await response.json();
-            
-            // Handle new server response format (no session ID)
-            if (data.success && data.emails) {
-              if (Array.isArray(data.emails) && data.emails.length > 0 && typeof data.emails[0] === 'object' && 'email' in data.emails[0] && 'confidence' in data.emails[0]) {
-                // Emails with confidence levels
-                setEmailsWithConfidence(data.emails);
-                setEmails(data.emails.map((item: EmailWithConfidence) => item.email));
-              } else if (Array.isArray(data.emails)) {
-                // Just email strings
-                setEmails(data.emails);
-                setEmailsWithConfidence([]);
-              }
-            } else if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && 'email' in data[0] && 'confidence' in data[0]) {
-              // Old format with confidence levels
-              setEmailsWithConfidence(data);
-              setEmails(data.map((item: EmailWithConfidence) => item.email));
-            } else if (Array.isArray(data)) {
-              // Old format - just strings
-              setEmails(data);
-              setEmailsWithConfidence([]);
-            }
-            setCurrentStep(4);
-          } catch (error) {
-            console.error('Error in auto-submit:', error);
-          } finally {
-            setIsLoading(false);
-          }
-        }, 1000);
-      } else {
-        throw new Error('Invalid response from Perplexity API');
-      }
-    } catch (error) {
-      console.error('Error calling Perplexity API:', error);
-      setCurrentStep(1);
-      setDomainError('Failed to fetch company data. Please try again.');
-    }
-  }, [formData]);
+
 
   const onSubmit = useCallback(async () => {
     if (!validateForm()) {
@@ -337,11 +228,7 @@ const useEmailForm = (): UseEmailFormReturn => {
       return;
     }
     
-    // For auto mode, trigger Perplexity API if no webhook response yet
-    if (formData.mode === 'auto' && !webhookResponse) {
-      await triggerDomainWebhook();
-      return;
-    }
+
     
     setIsLoading(true);
     setCurrentStep(3);
