@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import ProgressSteps from './components/ProgressSteps';
 import EmailForm from './components/EmailForm';
@@ -25,6 +25,7 @@ export default function Home() {
     isDomainValidating,
     webhookResponse,
     showWebhookResponse,
+    // New multi-domain properties
     multiDomainProgress,
     isMultiDomainProcessing,
     onDomainChange,
@@ -44,6 +45,14 @@ export default function Home() {
   const toggleTheme = () => {
     setIsDarkTheme(!isDarkTheme);
   };
+
+  // Debug logging for EmailResults props
+  useEffect(() => {
+    console.log('🔍 Page - EmailResults props:', {
+      emailsLength: emails.length,
+      emailsWithConfidenceLength: emailsWithConfidence.length
+    });
+  }, [emails.length, emailsWithConfidence.length]);
 
   return (
     <ProtectedRoute>

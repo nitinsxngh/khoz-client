@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { EmailWithVerification, EmailVerificationResult, EmailWithConfidence } from '../types';
+import type { EmailWithVerification, EmailVerificationResult, EmailWithConfidence, MultiDomainProgress } from '../types';
 
 interface EmailResultsProps {
   emails: string[];
@@ -12,12 +12,12 @@ interface EmailResultsProps {
   currentStep: number;
   onVerifyEmails: (count?: number) => Promise<void>;
   // New prop for multi-domain results
-  multiDomainProgress?: any;
+  multiDomainProgress?: MultiDomainProgress | null;
 }
 
-const EmailResults: React.FC<EmailResultsProps> = ({
+export default function EmailResults({
   emails, emailsWithConfidence, emailsWithVerification, isVerifying, isDarkTheme, currentStep, onVerifyEmails, multiDomainProgress
-}) => {
+}: EmailResultsProps) {
   const [verifyCount, setVerifyCount] = React.useState<number>(10);
 
   // Extract domain from email for display
@@ -40,13 +40,19 @@ const EmailResults: React.FC<EmailResultsProps> = ({
 
   const handleCopyAllEmails = async () => {
     try {
-      await navigator.clipboard.writeText(emails.join(', '));
+      if (Array.isArray(emails) && emails.length > 0) {
+        await navigator.clipboard.writeText(emails.join(', '));
+      }
     } catch (error) {
       console.error('Failed to copy emails:', error);
     }
   };
 
   const handleVerifyEmails = () => {
+    console.log('🔍 EmailResults - handleVerifyEmails called');
+    console.log('  - verifyCount:', verifyCount);
+    console.log('  - calling onVerifyEmails with:', verifyCount);
+    
     onVerifyEmails(verifyCount);
   };
 
@@ -116,7 +122,7 @@ const EmailResults: React.FC<EmailResultsProps> = ({
         {/* Action Buttons */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            {emails.length > 0 && (
+            {Array.isArray(emails) && emails.length > 0 && (
               <div className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${
                 isDarkTheme 
                   ? 'text-gray-300 bg-gray-800' 
@@ -137,7 +143,7 @@ const EmailResults: React.FC<EmailResultsProps> = ({
           </div>
           
           <div className="flex items-center space-x-2">
-            {emails.length > 0 && (
+            {Array.isArray(emails) && emails.length > 0 && (
               <button
                 onClick={handleCopyAllEmails}
                 className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${
@@ -155,7 +161,7 @@ const EmailResults: React.FC<EmailResultsProps> = ({
                 </div>
               </button>
             )}
-            {emails.length > 0 && !isVerifying && !emailsWithVerification.some(e => e.verification) && (
+            {Array.isArray(emails) && emails.length > 0 && !isVerifying && !emailsWithVerification.some(e => e.verification) && (
               <div className="flex items-center space-x-2">
                 <select
                   value={verifyCount}
@@ -173,7 +179,7 @@ const EmailResults: React.FC<EmailResultsProps> = ({
                   <option value={20}>First 20</option>
                   <option value={50}>First 50</option>
                   <option value={100}>First 100</option>
-                  <option value={emails.length}>All ({emails.length})</option>
+                  <option value={Array.isArray(emails) ? emails.length : 0}>All ({Array.isArray(emails) ? emails.length : 0})</option>
                 </select>
                 <button
                   onClick={handleVerifyEmails}
@@ -187,7 +193,7 @@ const EmailResults: React.FC<EmailResultsProps> = ({
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
-                    <span>Verify {verifyCount > emails.length ? emails.length : verifyCount}</span>
+                    <span>Verify {verifyCount > (Array.isArray(emails) ? emails.length : 0) ? (Array.isArray(emails) ? emails.length : 0) : verifyCount}</span>
                   </div>
                 </button>
               </div>
@@ -207,7 +213,7 @@ const EmailResults: React.FC<EmailResultsProps> = ({
       </div>
       
       {/* Email List */}
-      {emails.length === 0 ? (
+      {!Array.isArray(emails) || emails.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-center">
           <div className={`w-16 h-16 rounded-lg flex items-center justify-center mb-4 ${
             isDarkTheme ? 'bg-gray-800' : 'bg-gray-100'
@@ -256,8 +262,8 @@ const EmailResults: React.FC<EmailResultsProps> = ({
           </div>
           
           <div className="space-y-3">
-            {emails.map((email, index) => {
-              const emailWithVerification = emailsWithVerification[index];
+            {Array.isArray(emails) && emails.map((email, index) => {
+              const emailWithVerification = Array.isArray(emailsWithVerification) ? emailsWithVerification[index] : undefined;
               const confidence = getConfidenceLevel(email);
               
               return (
@@ -347,5 +353,3 @@ const EmailResults: React.FC<EmailResultsProps> = ({
     </div>
   );
 };
-
-export default EmailResults;
